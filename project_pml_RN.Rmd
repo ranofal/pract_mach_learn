@@ -1,0 +1,127 @@
+---
+title: "Practical_Machine_Learning_project_RN"
+author: "RNofal"
+date: "Monday, April 25, 2016"
+output: html_document
+---
+# Introduction
+The goal of your project is to predict the manner in which we did the exercise. 
+The technology today helps us to monitor our activity, by using devices such as Jawbone Up, Nike FuelBand, and Fitbit is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+In this project, we will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participant They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The five ways are exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). Only Class A corresponds to correct performance. The goal of this project is to predict the manner in which they did the exercise, i.e., Class A to E. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
+
+**`The goal of your project is to predict the manner in which they did the exercise.`**
+**`This is the "classe" variable in the training set.`**
+
+###Required Libraries 
+```{r echo = TRUE}
+library(ggplot2)
+library(datasets)
+library(caret)
+library(rattle)
+
+library(randomForest) #Breiman and Cutler's Random Forests for Classification and Regression
+library(repmis) # Automatically generate BibTeX files
+library(rpart) #Recursive Partitioning and Regression Trees
+library(rpart.plot) #Plot 'rpart' Models
+```
+
+
+###Loading traing and testing data from CSV files
+
+```{r echo=TRUE}
+#interprete any string "NA" and "" to an NA value 
+train_data <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+test_data <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+#print size of the data -number of rows- (observatition) and -number of column- variable
+dim(train_data)
+dim(test_data)
+```
+### Clean the data 
+First clean up all the columns that contains only "NA" value 
+Then remove the first 7 columns that have nothing to do with prediction the value of classe
+
+```{r}
+clean_train_data <- train_data[, colSums(is.na(train_data)) == 0]
+clean_test_data <- test_data[, colSums(is.na(test_data)) == 0]
+clean_train_data <- clean_train_data[,-c(1:7)] #keep all columns except 1 to 7
+clean_test_data <- clean_test_data[,-c(1:7)]
+#print size of the data -number of rows- (observatition) and -number of column- variable after the clean up
+dim(clean_train_data)
+dim(clean_test_data)
+```
+
+### Spliting the training data to train
+The split the training data into 2 sets 70% training and 30% validation 
+Using the folloing seed 1234
+```{r echo=TRUE}
+set.seed(1234) 
+trainTemp <- createDataPartition(clean_train_data$classe, p = 0.7, list = FALSE)
+train_set <- clean_train_data[trainTemp,]
+valid_set <- clean_train_data[-trainTemp,]
+```
+
+### Prediction using classification trees
+
+When using k-fold cross validation it's important to pick the value of k, here we use k=5.
+```{r echo=TRUE}
+control <- trainControl(method = "cv", number = 5)
+rpart_model <- train(classe ~ ., data=train_set, method="rpart",trControl = control)
+print(rpart_model, digits = 4)
+```
+
+### Ploting the classification tree
+```{r echo=TRUE}
+fancyRpartPlot(rpart_model$finalModel,palettes=c("Greys", "Oranges"))
+```
+
+### Predict the value of "classe" using the validation set.
+```{r echo=TRUE}
+prediction_results <- predict(rpart_model, valid_set)
+```
+
+### Show the confusion matrix.
+```{r echo=TRUE}
+(confusion_matrix <- confusionMatrix(valid_set$classe, prediction_results))
+```
+
+### Model Accuracy
+$$
+\mbox{accuracy} = \frac{\mbox{# correctly classified data points}}{\mbox{# total data points}}
+$$
+
+### Accuracy of classification tree
+```{r echo=TRUE}
+(accuracy_class_tree <- confusion_matrix$overall[1])
+```
+ 
+The classification tree accuracy  **`r accuracy_class_tree`** is really bad
+### Using Random Forest
+```{r echo=TRUE}
+random_forest_model <- train(classe ~ .,data=train_set, method="rf",trControl = control) #rf is random forest
+print(random_forest_model, digits = 4)
+```
+
+### Predict the value of "classe" using the validation set.
+```{r echo=TRUE}
+prediction_results <- predict(random_forest_model, valid_set)
+```
+
+### Show the confusion matrix.
+```{r echo=TRUE}
+(confusion_matrix <- confusionMatrix(valid_set$classe, prediction_results))
+```
+
+### Accuracy of classification tree
+```{r echo=TRUE}
+(accuracy_random_forest <- confusion_matrix$overall[1])
+```
+
+As we can see the random forest model accuracy is way much better than classification tree.
+The only issue it requires a lot of time to predict the data.
+
+### Predicting the test set
+Using the model random forest to predict test set
+```{r echo=TRUE}
+(predict(random_forest_model, test_data))
+```
+
